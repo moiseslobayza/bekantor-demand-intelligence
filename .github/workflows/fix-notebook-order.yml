@@ -1,0 +1,58 @@
+name: Fix notebook cell order
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-notebook-order.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  fix-notebook:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Move oil dataset construction before first use
+        shell: python
+        run: |
+          import json
+          from pathlib import Path
+
+          path = Path("notebooks/04_eda.ipynb")
+          notebook = json.loads(path.read_text(encoding="utf-8"))
+          cells = notebook["cells"]
+
+          def source_text(cell):
+              return "".join(cell.get("source", []))
+
+          creator_idx = next(
+              i for i, cell in enumerate(cells)
+              if "sales_daily_corr = (" in source_text(cell)
+              and "sales_oil_corr = (" in source_text(cell)
+          )
+
+          creator_cell = cells.pop(creator_idx)
+
+          corr_idx = next(
+              i for i, cell in enumerate(cells)
+              if "corr_oil_levels = (" in source_text(cell)
+          )
+
+          cells.insert(corr_idx, creator_cell)
+
+          path.write_text(
+              json.dumps(notebook, ensure_ascii=False, indent=1) + "\n",
+              encoding="utf-8"
+          )
+
+      - name: Commit corrected notebook
+        run: |
+          rm .github/workflows/fix-notebook-order.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add notebooks/04_eda.ipynb .github/workflows/fix-notebook-order.yml
+          git commit -m "Fix oil analysis cell order"
+          git push
