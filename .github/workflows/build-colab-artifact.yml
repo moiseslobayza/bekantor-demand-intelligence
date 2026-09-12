@@ -1,0 +1,108 @@
+name: Build Colab Notebook Artifact
+
+on:
+  push:
+    paths:
+      - '.github/workflows/build-colab-artifact.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build Colab notebook
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          src = Path('notebooks/04_eda.ipynb')
+          dst = Path('04_eda_colab.ipynb')
+
+          nb = json.loads(src.read_text(encoding='utf-8'))
+
+          def text(cell):
+              return ''.join(cell.get('source', []))
+
+          # Title / introduction
+          for cell in nb['cells']:
+              if cell.get('cell_type') == 'markdown' and '# EDA — Análisis Exploratorio de Datos' in text(cell):
+                  cell['source'] = [
+                      '# EDA — Análisis Exploratorio de Datos\n',
+                      '\n',
+                      '## BEKANTOR Demand Intelligence — Versión Google Colab\n',
+                      '\n',
+                      'El objetivo de esta etapa es explorar el comportamiento de las ventas, detectar patrones, relaciones, valores atípicos y problemas relevantes para un escenario de forecasting de demanda. El análisis respeta el orden temporal de la información y evita incorporar datos futuros en variables que luego puedan utilizarse para predecir.\n'
+                  ]
+                  break
+
+          # Libraries cell: leave normal imports only.
+          for cell in nb['cells']:
+              if cell.get('cell_type') == 'code' and 'import plotly.express as px' in text(cell) and 'import pandas as pd' in text(cell):
+                  cell['source'] = [
+                      'from pathlib import Path\n',
+                      'import sys\n',
+                      'import subprocess\n',
+                      '\n',
+                      'import pandas as pd\n',
+                      'import numpy as np\n',
+                      'import matplotlib.pyplot as plt\n',
+                      'import plotly.express as px\n'
+                  ]
+                  cell['execution_count'] = None
+                  cell['outputs'] = []
+                  break
+
+          # Rename setup heading.
+          for cell in nb['cells']:
+              if cell.get('cell_type') == 'markdown' and '### Conexión del notebook con el proyecto' in text(cell):
+                  cell['source'] = [
+                      '### Configuración de Google Colab\n',
+                      '\n',
+                      'Esta celda monta Google Drive, descarga el código del proyecto desde GitHub y define la carpeta donde deben estar los CSV originales del dataset.'
+                  ]
+                  break
+
+          # Replace local PROJECT_ROOT setup.
+          setup_source = '''# Configuración reproducible para Google Colab\nfrom google.colab import drive\ndrive.mount("/content/drive")\n\nREPO_URL = "https://github.com/moiseslobayza/bekantor-demand-intelligence.git"\nPROJECT_ROOT = Path("/content/bekantor-demand-intelligence")\n\nif not PROJECT_ROOT.exists():\n    subprocess.run(["git", "clone", "--depth", "1", REPO_URL, str(PROJECT_ROOT)], check=True)\nelse:\n    subprocess.run(["git", "-C", str(PROJECT_ROOT), "pull", "--ff-only"], check=True)\n\nsubprocess.run(\n    [sys.executable, "-m", "pip", "install", "-q", "-r", str(PROJECT_ROOT / "requirements.txt")],\n    check=True,\n)\n\nif str(PROJECT_ROOT) not in sys.path:\n    sys.path.insert(0, str(PROJECT_ROOT))\n\n# Los CSV deben estar en esta carpeta de Google Drive.\nDATA_DIR = Path("/content/drive/MyDrive/bekantor-demand-intelligence/data/raw")\n\nrequired_files = {\n    "train.csv",\n    "stores.csv",\n    "transactions.csv",\n    "holidays_events.csv",\n    "oil.csv",\n}\nmissing_files = sorted(name for name in required_files if not (DATA_DIR / name).exists())\n\nprint(f"Proyecto: {PROJECT_ROOT}")\nprint(f"Datos: {DATA_DIR}")\n\nif missing_files:\n    raise FileNotFoundError(\n        "Faltan archivos en Google Drive: " + ", ".join(missing_files) +\n        "\\nCopialos en: " + str(DATA_DIR)\n    )\n'''
+
+          for cell in nb['cells']:
+              if cell.get('cell_type') == 'code' and 'PROJECT_ROOT = Path.cwd()' in text(cell):
+                  cell['source'] = setup_source.splitlines(keepends=True)
+                  cell['execution_count'] = None
+                  cell['outputs'] = []
+                  break
+
+          # Load data from the Drive path instead of local data/raw.
+          load_source = '''from src.data.load_data import load_raw_data\nfrom src.data.clean_data import minimal_cleaning\n\ndatasets = load_raw_data(DATA_DIR)\ndatasets = minimal_cleaning(datasets)\n\nsales = datasets["sales"]\nstores = datasets["stores"]\ntransactions = datasets["transactions"]\nholidays = datasets["holidays"]\noil = datasets["oil"]\n'''
+
+          for cell in nb['cells']:
+              if cell.get('cell_type') == 'code' and 'from src.data.load_data import load_raw_data' in text(cell):
+                  cell['source'] = load_source.splitlines(keepends=True)
+                  cell['execution_count'] = None
+                  cell['outputs'] = []
+                  break
+
+          # Colab metadata and clean only setup execution numbers; keep analytical outputs
+          # already present in the polished local notebook so the delivered file remains readable.
+          nb.setdefault('metadata', {})
+          nb['metadata'].setdefault('colab', {})
+          nb['metadata']['colab']['name'] = '04_eda_colab.ipynb'
+          nb['metadata']['colab']['provenance'] = []
+
+          dst.write_text(json.dumps(nb, ensure_ascii=False, indent=1), encoding='utf-8')
+          print(f'Created {dst} ({dst.stat().st_size:,} bytes)')
+          PY
+
+      - name: Upload Colab notebook
+        uses: actions/upload-artifact@v4
+        with:
+          name: 04_eda_colab
+          path: 04_eda_colab.ipynb
+          if-no-files-found: error
