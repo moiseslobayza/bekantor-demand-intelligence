@@ -3,6 +3,8 @@ data/interim/
 data/processed/
 
 .venv/
+.venv-eda/
+.venv-eda-cache/
 __pycache__/
 .ipynb_checkpoints/
 *.pyc
