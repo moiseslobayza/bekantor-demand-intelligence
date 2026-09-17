@@ -1,0 +1,68 @@
+name: Fix holiday series mask
+
+on:
+  push:
+    branches:
+      - eda-final-profesor
+    paths:
+      - '.github/workflows/fix-holiday-series-mask.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: eda-final-profesor
+          fetch-depth: 0
+
+      - name: Patch integer holiday masks
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path('notebooks/04_eda.ipynb')
+          nb = json.loads(path.read_text(encoding='utf-8'))
+
+          old_h = '    h = group.loc[group["is_holiday"], "sales"]\n'
+          old_n = '    n = group.loc[~group["is_holiday"], "sales"]\n'
+          new_h = '    h = group.loc[group["is_holiday"].eq(1), "sales"]\n'
+          new_n = '    n = group.loc[group["is_holiday"].eq(0), "sales"]\n'
+
+          changed = False
+          for cell in nb['cells']:
+              if cell.get('cell_type') != 'code':
+                  continue
+              src = cell.get('source', [])
+              if old_h in src or old_n in src:
+                  cell['source'] = [new_h if line == old_h else new_n if line == old_n else line for line in src]
+                  cell['execution_count'] = None
+                  cell['outputs'] = []
+                  changed = True
+
+          if not changed:
+              raise RuntimeError('No se encontraron las máscaras de feriados esperadas')
+
+          raw = json.dumps(nb, ensure_ascii=False, indent=1)
+          assert 'group.loc[group[\\"is_holiday\\"], \\"sales\\"]' not in raw
+          assert '~group[\\"is_holiday\\"]' not in raw
+          assert 'group[\\"is_holiday\\"].eq(1)' in raw
+          assert 'group[\\"is_holiday\\"].eq(0)' in raw
+
+          path.write_text(raw + '\n', encoding='utf-8')
+          PY
+
+      - name: Commit fix
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/fix-holiday-series-mask.yml
+          git add notebooks/04_eda.ipynb
+          git commit -m "fix: use boolean-safe holiday series masks"
+          git push origin HEAD:eda-final-profesor
