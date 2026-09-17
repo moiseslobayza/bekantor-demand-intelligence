@@ -15,6 +15,8 @@ El EDA está orientado a forecasting: separa ceros estructurales de demanda real
 
 ## Reproducibilidad local
 
+El proyecto fue **verificado ejecutando 94/94 celdas de `notebooks/04_eda.ipynb` con CPython 3.14.7 y Pandas 3.0.0**. Python 3.14.7 es el entorno verificado, no un requisito exclusivo; la ejecución con otras versiones de Python no fue verificada. `requirements.txt` fija las versiones de las dependencias principales utilizadas en esa ejecución.
+
 1. Crear y activar un entorno virtual.
 2. Instalar dependencias:
 

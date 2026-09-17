@@ -79,9 +79,9 @@ def build_calendar(sales, stores, holidays):
 
     events = pd.DataFrame(records)
 
-    # Si no hubiera eventos evitamos error
+    # Conservar el mismo esquema incluso cuando no hay eventos aplicables.
     if events.empty:
-        return calendar
+        return _complete_calendar_columns(calendar)
 
     # Número de eventos que afectan a cada tienda-fecha
     event_count = (
@@ -154,6 +154,11 @@ def build_calendar(sales, stores, holidays):
         how="left"
     )
 
+    return _complete_calendar_columns(calendar)
+
+
+def _complete_calendar_columns(calendar):
+    """Normaliza el esquema y los tipos, haya o no eventos aplicables."""
     flag_columns = [
         "is_holiday",
         "is_event",
@@ -174,6 +179,13 @@ def build_calendar(sales, stores, holidays):
         .astype("int8")
     )
 
+    if "event_count" not in calendar.columns:
+        calendar["event_count"] = 0
+    if "event_descriptions" not in calendar.columns:
+        calendar["event_descriptions"] = pd.Series(
+            pd.NA, index=calendar.index, dtype="str"
+        )
+
     calendar["event_count"] = (
         calendar["event_count"]
         .fillna(0)
@@ -186,4 +198,8 @@ def build_calendar(sales, stores, holidays):
         (calendar["date"].dt.day == 1)
     ).astype("int8")
 
-    return calendar
+    event_columns = flag_columns + [
+        "event_count", "event_descriptions", "is_new_year_closure"
+    ]
+    base_columns = [col for col in calendar.columns if col not in event_columns]
+    return calendar[base_columns + event_columns]
