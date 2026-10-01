@@ -1,6 +1,64 @@
 import numpy as np
 import pandas as pd
 
+from src.models.categorical import apply_category_schema
+
+
+def build_recursive_features_for_date(
+    features_base,
+    history,
+    current_date,
+    model_features,
+    category_schema,
+    lags=(1, 7, 14, 28),
+    rolling_windows=(7, 14, 28),
+):
+    """Construye una matriz diaria con la misma semántica que entrenamiento."""
+
+    current_date = pd.Timestamp(current_date)
+    current = features_base.loc[features_base["date"].eq(current_date)].copy()
+    if current.empty:
+        raise ValueError(f"No hay filas para pronosticar {current_date.date()}")
+
+    for lag in lags:
+        lag_date = current_date - pd.Timedelta(days=lag)
+        lag_values = history.loc[
+            history["date"].eq(lag_date),
+            ["store_nbr", "family", "history_sales"],
+        ].rename(columns={"history_sales": f"lag_{lag}"})
+        current = current.merge(
+            lag_values,
+            on=["store_nbr", "family"],
+            how="left",
+            validate="one_to_one",
+        )
+
+    for window in rolling_windows:
+        start_date = current_date - pd.Timedelta(days=window)
+        hist_window = history.loc[
+            history["date"].ge(start_date)
+            & history["date"].lt(current_date)
+        ]
+        rolling_values = hist_window.groupby(
+            ["store_nbr", "family"],
+            as_index=False,
+        ).agg(**{f"rolling_mean_{window}": ("history_sales", "mean")})
+        current = current.merge(
+            rolling_values,
+            on=["store_nbr", "family"],
+            how="left",
+            validate="one_to_one",
+        )
+
+    X_day = current[model_features].copy()
+    X_day, unknown_categories = apply_category_schema(
+        X_day,
+        category_schema=category_schema,
+        fail_on_unknown=True,
+    )
+
+    return current, X_day, unknown_categories
+
 
 def recursive_forecast(
     model,
@@ -9,7 +67,7 @@ def recursive_forecast(
     validation_start,
     validation_end,
     model_features,
-    categorical_features,
+    category_schema,
     lags=(1, 7, 14, 28),
     rolling_windows=(7, 14, 28),
 ):
@@ -35,60 +93,15 @@ def recursive_forecast(
 
     for current_date in forecast_dates:
 
-        # Features conocidas del día.
-        # sales NO forma parte de model_features.
-        current = features_base[features_base["date"].eq(current_date)].copy()
-
-        # -----------------------------------------------
-        # LAGS
-        # -----------------------------------------------
-        for lag in lags:
-
-            lag_date = current_date - pd.Timedelta(days=lag)
-
-            lag_values = history[history["date"].eq(lag_date)][
-                ["store_nbr", "family", "history_sales"]
-            ].rename(columns={"history_sales": f"lag_{lag}"})
-
-            current = current.merge(
-                lag_values,
-                on=["store_nbr", "family"],
-                how="left",
-                validate="one_to_one",
-            )
-
-        # -----------------------------------------------
-        # ROLLING
-        # -----------------------------------------------
-        for window in rolling_windows:
-
-            start_date = current_date - pd.Timedelta(days=window)
-
-            hist_window = history[
-                history["date"].ge(start_date) & history["date"].lt(current_date)
-            ]
-
-            rolling_values = hist_window.groupby(
-                ["store_nbr", "family"],
-                as_index=False,
-            ).agg(**{f"rolling_mean_{window}": ("history_sales", "mean")})
-
-            current = current.merge(
-                rolling_values,
-                on=["store_nbr", "family"],
-                how="left",
-                validate="one_to_one",
-            )
-
-        # -----------------------------------------------
-        # MATRIZ DEL MODELO
-        # -----------------------------------------------
-        X_day = current[model_features].copy()
-
-        # Usar exactamente las categorías aprendidas
-        # durante entrenamiento.
-        for col in categorical_features:
-            X_day[col] = X_day[col].astype("category")
+        current, X_day, _ = build_recursive_features_for_date(
+            features_base=features_base,
+            history=history,
+            current_date=current_date,
+            model_features=model_features,
+            category_schema=category_schema,
+            lags=lags,
+            rolling_windows=rolling_windows,
+        )
 
         predictions_log = model.predict(X_day)
 
@@ -116,7 +129,15 @@ def recursive_forecast(
             ignore_index=True,
         )
 
-    return pd.concat(
+    result = pd.concat(
         predictions,
         ignore_index=True,
     )
+    expected_dates = pd.DatetimeIndex(forecast_dates)
+    observed_dates = pd.DatetimeIndex(result["date"].drop_duplicates())
+    if not observed_dates.equals(expected_dates):
+        raise AssertionError(
+            "El forecast no cubre exactamente todas las fechas del horizonte."
+        )
+
+    return result

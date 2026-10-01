@@ -22,8 +22,7 @@ def seasonal_weekday_baseline(
 ):
     """Baseline estacional tienda-familia-día de semana.
 
-    Se conserva como módulo para la futura etapa de modelado, pero no debe
-    ejecutarse ni evaluarse dentro del EDA final.
+    Utiliza únicamente la historia anterior al comienzo de validación.
     """
     validation_start = validation[date_col].min()
     baseline_start = validation_start - pd.Timedelta(days=lookback_days)
@@ -70,3 +69,19 @@ def rmsle(y_true, y_pred):
     return float(
         np.sqrt(np.mean((np.log1p(y_true) - np.log1p(y_pred)) ** 2))
     )
+
+
+def mae(y_true, y_pred):
+    """Mean Absolute Error."""
+
+    y_true = np.asarray(y_true, dtype=float)
+    y_pred = np.asarray(y_pred, dtype=float)
+    return float(np.mean(np.abs(y_true - y_pred)))
+
+
+def mean_signed_error(y_true, y_pred):
+    """Promedio de predicción - real; positivo indica sobrepredicción."""
+
+    y_true = np.asarray(y_true, dtype=float)
+    y_pred = np.asarray(y_pred, dtype=float)
+    return float(np.mean(y_pred - y_true))

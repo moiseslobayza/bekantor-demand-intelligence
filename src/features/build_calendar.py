@@ -1,6 +1,15 @@
 import pandas as pd
 
 
+SCHEDULED_EVENT_TYPES = {
+    "Holiday",
+    "Transfer",
+    "Additional",
+    "Bridge",
+    "Work Day",
+}
+
+
 def build_calendar(sales, stores, holidays):
     """
     Construye un calendario diario por tienda.
@@ -93,6 +102,18 @@ def build_calendar(sales, stores, holidays):
         .size()
         .rename(columns={"size": "event_count"})
     )
+    scheduled_event_count = (
+        events.loc[events["event_type"].isin(SCHEDULED_EVENT_TYPES)]
+        .groupby(["date", "store_nbr"], as_index=False)
+        .size()
+        .rename(columns={"size": "scheduled_event_count"})
+    )
+    unplanned_event_count = (
+        events.loc[~events["event_type"].isin(SCHEDULED_EVENT_TYPES)]
+        .groupby(["date", "store_nbr"], as_index=False)
+        .size()
+        .rename(columns={"size": "unplanned_event_count"})
+    )
 
     # Conservar todas las descripciones de un mismo día
     descriptions = (
@@ -147,6 +168,16 @@ def build_calendar(sales, stores, holidays):
         on=["date", "store_nbr"],
         how="left"
     )
+    calendar = calendar.merge(
+        scheduled_event_count,
+        on=["date", "store_nbr"],
+        how="left"
+    )
+    calendar = calendar.merge(
+        unplanned_event_count,
+        on=["date", "store_nbr"],
+        how="left"
+    )
 
     calendar = calendar.merge(
         descriptions,
@@ -179,18 +210,20 @@ def _complete_calendar_columns(calendar):
         .astype("int8")
     )
 
-    if "event_count" not in calendar.columns:
-        calendar["event_count"] = 0
+    count_columns = [
+        "event_count",
+        "scheduled_event_count",
+        "unplanned_event_count",
+    ]
+    for col in count_columns:
+        if col not in calendar.columns:
+            calendar[col] = 0
     if "event_descriptions" not in calendar.columns:
         calendar["event_descriptions"] = pd.Series(
             pd.NA, index=calendar.index, dtype="str"
         )
 
-    calendar["event_count"] = (
-        calendar["event_count"]
-        .fillna(0)
-        .astype(int)
-    )
+    calendar[count_columns] = calendar[count_columns].fillna(0).astype(int)
 
     # Cierre estructural detectado en el EDA
     calendar["is_new_year_closure"] = (
@@ -199,7 +232,11 @@ def _complete_calendar_columns(calendar):
     ).astype("int8")
 
     event_columns = flag_columns + [
-        "event_count", "event_descriptions", "is_new_year_closure"
+        "event_count",
+        "scheduled_event_count",
+        "unplanned_event_count",
+        "event_descriptions",
+        "is_new_year_closure",
     ]
     base_columns = [col for col in calendar.columns if col not in event_columns]
     return calendar[base_columns + event_columns]

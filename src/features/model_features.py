@@ -3,6 +3,93 @@ import pandas as pd
 from src.features.build_calendar import build_calendar
 
 
+MODEL_FEATURES = [
+    "store_nbr",
+    "family",
+    "year",
+    "month",
+    "day",
+    "day_of_week",
+    "week_of_year",
+    "is_weekend",
+    "onpromotion",
+    "city",
+    "state",
+    "type",
+    "cluster",
+    "is_holiday",
+    "is_transfer",
+    "is_additional",
+    "is_bridge",
+    "is_work_day",
+    "is_new_year_closure",
+    "scheduled_event_count",
+    "lag_1",
+    "lag_7",
+    "lag_14",
+    "lag_28",
+    "rolling_mean_7",
+    "rolling_mean_14",
+    "rolling_mean_28",
+]
+
+CATEGORICAL_FEATURES = [
+    "store_nbr",
+    "family",
+    "city",
+    "state",
+    "type",
+    "cluster",
+]
+
+FEATURE_AVAILABILITY = {
+    "store_nbr": "Identidad conocida antes del horizonte.",
+    "family": "Identidad conocida antes del horizonte.",
+    "year": "Calendario determinístico.",
+    "month": "Calendario determinístico.",
+    "day": "Calendario determinístico.",
+    "day_of_week": "Calendario determinístico.",
+    "week_of_year": "Calendario determinístico.",
+    "is_weekend": "Calendario determinístico.",
+    "onpromotion": (
+        "Disponible sólo bajo el supuesto Favorita: el plan promocional "
+        "futuro se conoce antes de emitir el forecast."
+    ),
+    "city": "Metadata estática conocida.",
+    "state": "Metadata estática conocida.",
+    "type": "Metadata estática conocida.",
+    "cluster": "Metadata estática conocida.",
+    "is_holiday": "Feriado programado y no trasladado.",
+    "is_transfer": "Traslado programado del calendario oficial.",
+    "is_additional": "Día adicional programado.",
+    "is_bridge": "Puente programado.",
+    "is_work_day": "Día laboral compensatorio programado.",
+    "is_new_year_closure": "Regla de calendario determinística.",
+    "scheduled_event_count": (
+        "Cuenta sólo Holiday, Transfer, Additional, Bridge y Work Day; "
+        "excluye Event por posible conocimiento ex post."
+    ),
+    "lag_1": "Sólo target histórico disponible antes del día pronosticado.",
+    "lag_7": "Sólo target histórico disponible antes del día pronosticado.",
+    "lag_14": "Sólo target histórico disponible antes del día pronosticado.",
+    "lag_28": "Sólo target histórico disponible antes del día pronosticado.",
+    "rolling_mean_7": "Ventana histórica [t-7, t), sin el día actual.",
+    "rolling_mean_14": "Ventana histórica [t-14, t), sin el día actual.",
+    "rolling_mean_28": "Ventana histórica [t-28, t), sin el día actual.",
+}
+
+
+def feature_availability_table():
+    """Devuelve el contrato auditable de disponibilidad del modelo."""
+
+    return pd.DataFrame(
+        [
+            {"feature": feature, "availability": FEATURE_AVAILABILITY[feature]}
+            for feature in MODEL_FEATURES
+        ]
+    )
+
+
 def add_known_features(
     sales_modelable,
     sales,
@@ -13,7 +100,9 @@ def add_known_features(
     Agrega variables conocidas o determinables antes de realizar
     el pronóstico.
 
-    No utiliza valores futuros de sales.
+    No utiliza valores futuros de sales. ``onpromotion`` se considera conocida
+    sólo bajo el supuesto de competencia Favorita. Los eventos ``type=Event``
+    se conservan para diagnóstico pero no forman parte de ``MODEL_FEATURES``.
     """
 
     data = sales_modelable.copy()
@@ -70,6 +159,8 @@ def add_known_features(
             "is_work_day",
             "is_new_year_closure",
             "event_count",
+            "scheduled_event_count",
+            "unplanned_event_count",
         ]
     ].copy()
 
