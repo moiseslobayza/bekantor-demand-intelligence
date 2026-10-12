@@ -2,7 +2,15 @@ import numpy as np
 import pandas as pd
 
 from src.features.model_features import CATEGORICAL_FEATURES, MODEL_FEATURES
-from src.models.baseline import mae, mean_signed_error, rmsle, seasonal_weekday_baseline
+from src.models.baseline import (
+    aggregate_percentage_bias,
+    mae,
+    mean_signed_error,
+    over_under_magnitudes,
+    rmsle,
+    seasonal_weekday_baseline,
+    wape,
+)
 from src.models.categorical import apply_category_schema, fit_category_schema
 from src.models.lightgbm_model import fit_fixed_iterations, fit_with_early_stopping
 from src.models.modeling_pipeline import prepare_cutoff_dataset
@@ -10,11 +18,46 @@ from src.models.recursive_forecast import recursive_forecast
 
 
 def prediction_metrics(y_true, y_pred):
-    return {
+    metrics = {
         "RMSLE": rmsle(y_true, y_pred),
         "MAE": mae(y_true, y_pred),
         "MSE_signed": mean_signed_error(y_true, y_pred),
+        "WAPE_pct": wape(y_true, y_pred),
+        "Bias_pct": aggregate_percentage_bias(y_true, y_pred),
     }
+    metrics.update(over_under_magnitudes(y_true, y_pred))
+    return metrics
+
+
+def segment_metrics(frame, prediction_col, group_cols=()):
+    """Métricas comparables para el total o segmentos de un forecast."""
+
+    group_cols = list(group_cols)
+    grouped = (
+        frame.groupby(group_cols, observed=True, dropna=False)
+        if group_cols
+        else [((), frame)]
+    )
+    rows = []
+    for keys, group in grouped:
+        if group_cols and not isinstance(keys, tuple):
+            keys = (keys,)
+        row = dict(zip(group_cols, keys if group_cols else ()))
+        errors = group[prediction_col].to_numpy() - group["sales"].to_numpy()
+        row.update(prediction_metrics(group["sales"], group[prediction_col]))
+        row.update(
+            {
+                "pct_zero_sales": float(group["sales"].eq(0).mean() * 100),
+                "pct_overpredicted": float((errors > 0).mean() * 100),
+                "pct_underpredicted": float((errors < 0).mean() * 100),
+                "n_obs": int(len(group)),
+                "n_series": int(
+                    group[["store_nbr", "family"]].drop_duplicates().shape[0]
+                ),
+            }
+        )
+        rows.append(row)
+    return pd.DataFrame(rows)
 
 
 def _training_matrices(prepared):

@@ -8,7 +8,16 @@ from src.data.panel_diagnostics import (
     split_future_known_and_cold_start,
 )
 from src.features.model_features import add_lag_features, add_rolling_features
+from src.models.baseline import (
+    aggregate_percentage_bias,
+    over_under_magnitudes,
+    wape,
+)
 from src.models.categorical import apply_category_schema, fit_category_schema
+from src.models.recursive_importance import (
+    permute_feature_within_date,
+    recursive_permutation_importance,
+)
 from src.models.recursive_forecast import (
     build_recursive_features_for_date,
     recursive_forecast,
@@ -197,3 +206,122 @@ def test_recursive_forecast_covers_complete_horizon():
         pd.date_range("2017-01-05", "2017-01-07")
     )
     assert len(result) == 3
+
+
+def test_business_metrics_handle_zero_denominator_and_signed_magnitudes():
+    assert np.isnan(wape([0, 0], [1, 2]))
+    assert np.isnan(aggregate_percentage_bias([0, 0], [1, 2]))
+    assert np.isclose(wape([10, 20], [12, 15]), 7 / 30 * 100)
+    assert np.isclose(aggregate_percentage_bias([10, 20], [12, 15]), -10.0)
+    assert over_under_magnitudes([10, 20], [12, 15]) == {
+        "Overprediction": 2.0,
+        "Underprediction": 5.0,
+    }
+
+
+def test_feature_transform_is_reforecast_recursively():
+    base, train, schema = _recursive_fixture()
+    model = _RecordingModel([100.0, 200.0, 300.0])
+
+    def perturb_first_day(X_day, keys, current_date):
+        if current_date == pd.Timestamp("2017-01-05"):
+            X_day["lag_1"] = 999.0
+        return X_day
+
+    recursive_forecast(
+        model=model,
+        features_base=base,
+        train=train,
+        validation_start="2017-01-05",
+        validation_end="2017-01-07",
+        model_features=["store_nbr", "family", "lag_1"],
+        category_schema=schema,
+        lags=(1,),
+        rolling_windows=(),
+        feature_transform=perturb_first_day,
+    )
+
+    assert model.frames[0].iloc[0]["lag_1"] == 999.0
+    assert np.isclose(model.frames[1].iloc[0]["lag_1"], 100.0)
+    assert np.isclose(model.frames[2].iloc[0]["lag_1"], 200.0)
+    assert list(model.frames[0]["family"].cat.categories) == ["A"]
+
+
+class _LagModel:
+    def __init__(self):
+        self.frames = []
+
+    def predict(self, X):
+        self.frames.append(X.copy())
+        return np.log1p(X["lag_1"].fillna(0).to_numpy(dtype=float))
+
+
+def test_permutation_never_crosses_forecast_dates():
+    keys = pd.DataFrame(
+        {
+            "date": pd.to_datetime(
+                ["2017-01-05", "2017-01-05", "2017-01-06", "2017-01-06"]
+            ),
+            "store_nbr": [1, 2, 1, 2],
+            "family": ["A", "A", "A", "A"],
+        }
+    )
+    X = pd.DataFrame({"lag_1": [10.0, 20.0, 100.0, 200.0]})
+    permuted, audit = permute_feature_within_date(
+        X_day=X,
+        keys=keys,
+        feature="lag_1",
+        rng=np.random.default_rng(4),
+    )
+
+    assert audit["date"].eq(audit["source_date"]).all()
+    for date, positions in keys.groupby("date").indices.items():
+        assert sorted(permuted.iloc[positions]["lag_1"]) == sorted(
+            X.iloc[positions]["lag_1"]
+        )
+        assert set(audit.iloc[positions]["source_date"]) == {date}
+
+
+def test_recursive_importance_features_do_not_depend_on_validation_truth():
+    base, train, schema = _recursive_fixture()
+    validation = base.loc[base["date"].gt("2017-01-04")].copy()
+    altered = validation.copy()
+    altered["sales"] = [9000.0, 8000.0, 7000.0]
+    altered_base = base.copy()
+    altered_base.loc[altered_base["date"].gt("2017-01-04"), "sales"] = altered[
+        "sales"
+    ].to_numpy()
+
+    base_model = _LagModel()
+    common = dict(
+        model=base_model,
+        features_base=base,
+        train=train,
+        validation_start="2017-01-05",
+        validation_end="2017-01-07",
+        model_features=["store_nbr", "family", "lag_1"],
+        category_schema=schema,
+        n_repeats=1,
+        random_state=7,
+        lags=(1,),
+        rolling_windows=(),
+    )
+    _, predictions, trace = recursive_permutation_importance(
+        validation=validation, **common
+    )
+    altered_model = _LagModel()
+    altered_common = {
+        **common,
+        "model": altered_model,
+        "features_base": altered_base,
+    }
+    _, altered_predictions, altered_trace = recursive_permutation_importance(
+        validation=altered, **altered_common
+    )
+
+    pd.testing.assert_frame_equal(predictions, altered_predictions)
+    pd.testing.assert_frame_equal(trace, altered_trace)
+    assert len(base_model.frames) == len(altered_model.frames)
+    for base_frame, altered_frame in zip(base_model.frames, altered_model.frames):
+        pd.testing.assert_frame_equal(base_frame, altered_frame)
+    assert trace.loc[1, "lag_1"] == predictions.loc[0, "prediction"]

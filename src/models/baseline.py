@@ -85,3 +85,42 @@ def mean_signed_error(y_true, y_pred):
     y_true = np.asarray(y_true, dtype=float)
     y_pred = np.asarray(y_pred, dtype=float)
     return float(np.mean(y_pred - y_true))
+
+
+def wape(y_true, y_pred):
+    """Weighted Absolute Percentage Error en porcentaje.
+
+    Devuelve ``np.nan`` cuando el segmento no tiene ventas reales, ya que el
+    cociente no está definido. No se reemplaza por cero porque eso aparentaría
+    un desempeño perfecto.
+    """
+
+    y_true = np.asarray(y_true, dtype=float)
+    y_pred = np.asarray(y_pred, dtype=float)
+    denominator = float(np.sum(y_true))
+    if np.isclose(denominator, 0.0):
+        return np.nan
+    return float(np.sum(np.abs(y_pred - y_true)) / denominator * 100)
+
+
+def aggregate_percentage_bias(y_true, y_pred):
+    """Sesgo agregado en porcentaje; positivo indica sobrepredicción."""
+
+    y_true = np.asarray(y_true, dtype=float)
+    y_pred = np.asarray(y_pred, dtype=float)
+    denominator = float(np.sum(y_true))
+    if np.isclose(denominator, 0.0):
+        return np.nan
+    return float(np.sum(y_pred - y_true) / denominator * 100)
+
+
+def over_under_magnitudes(y_true, y_pred):
+    """Suma de excesos y faltantes pronosticados, ambas como magnitudes >= 0."""
+
+    y_true = np.asarray(y_true, dtype=float)
+    y_pred = np.asarray(y_pred, dtype=float)
+    errors = y_pred - y_true
+    return {
+        "Overprediction": float(np.clip(errors, 0, None).sum()),
+        "Underprediction": float(np.clip(-errors, 0, None).sum()),
+    }

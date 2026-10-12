@@ -70,6 +70,8 @@ def recursive_forecast(
     category_schema,
     lags=(1, 7, 14, 28),
     rolling_windows=(7, 14, 28),
+    feature_transform=None,
+    return_feature_trace=False,
 ):
     """
     Genera un forecast recursivo día por día.
@@ -84,6 +86,7 @@ def recursive_forecast(
     history = history.rename(columns={"sales": "history_sales"})
 
     predictions = []
+    feature_trace = []
 
     forecast_dates = pd.date_range(
         validation_start,
@@ -102,6 +105,28 @@ def recursive_forecast(
             lags=lags,
             rolling_windows=rolling_windows,
         )
+
+        if feature_transform is not None:
+            X_day = feature_transform(
+                X_day.copy(),
+                current[["date", "store_nbr", "family"]].copy(),
+                current_date,
+            )
+            X_day, unknown = apply_category_schema(
+                X_day,
+                category_schema=category_schema,
+                fail_on_unknown=True,
+            )
+            if unknown:
+                raise AssertionError(
+                    f"La transformación introdujo categorías desconocidas: {unknown}"
+                )
+
+        if return_feature_trace:
+            traced = current[["date", "store_nbr", "family"]].copy()
+            for column in model_features:
+                traced[column] = X_day[column].array
+            feature_trace.append(traced)
 
         predictions_log = model.predict(X_day)
 
@@ -140,4 +165,6 @@ def recursive_forecast(
             "El forecast no cubre exactamente todas las fechas del horizonte."
         )
 
+    if return_feature_trace:
+        return result, pd.concat(feature_trace, ignore_index=True)
     return result

@@ -48,6 +48,22 @@ cells = [
           subpredicción.
         - Las series nuevas se reportan como *cold-start* y no modifican el
           universo conocido en el cutoff.
+
+        ### Alcance del aislamiento temporal
+
+        El EDA histórico aprobado fue realizado previamente sobre datos que
+        llegan hasta el 15/08/2017, por lo que **no se afirma independencia
+        absoluta del test**. Este notebook separa el uso retrospectivo del EDA
+        de las decisiones predictivas: contrato de disponibilidad, universo,
+        clasificación ADI/CV², esquema categórico y entrenamiento se calculan
+        de nuevo con información anterior al cutoff; la cantidad de árboles se
+        fija sólo con los tres folds previos al 01/08. No se ajustan
+        hiperparámetros después de observar el test.
+
+        Esta limitación humana/procedimental permanece: el equipo ya había
+        visto descriptivos del período final. Por eso el test se interpreta
+        como evaluación final congelada del pipeline, no como evidencia de un
+        cegamiento experimental perfecto.
         """
     ),
     code(
@@ -62,7 +78,6 @@ cells = [
         import pandas as pd
         import sklearn
         from IPython.display import display
-        from sklearn.inspection import permutation_importance
 
         PROJECT_ROOT = Path.cwd()
         if PROJECT_ROOT.name == "notebooks":
@@ -178,7 +193,7 @@ cells = [
         assert opening_differences == 0
 
         del legacy_sales, legacy_series, corrected_series
-        gc.collect()
+        _ = gc.collect()
         """
     ),
     md("## Rolling-origin backtesting y selección de árboles"),
@@ -229,10 +244,13 @@ cells = [
                 last_fold_result = fold_result
             else:
                 del fold_result
-                gc.collect()
+                _ = gc.collect()
 
         backtest_results = pd.concat(backtest_summaries, ignore_index=True)
-        display(backtest_results.round(6))
+        backtest_display = backtest_results.copy()
+        numeric_columns = backtest_display.select_dtypes(include="number").columns
+        backtest_display[numeric_columns] = backtest_display[numeric_columns].round(6)
+        display(backtest_display)
         """
     ),
     code(
@@ -244,8 +262,11 @@ cells = [
                 RMSLE_std=("RMSLE", "std"),
                 MAE_mean=("MAE", "mean"),
                 MAE_std=("MAE", "std"),
+                WAPE_mean=("WAPE_pct", "mean"),
+                WAPE_std=("WAPE_pct", "std"),
                 signed_error_mean=("MSE_signed", "mean"),
                 signed_error_std=("MSE_signed", "std"),
+                bias_pct_mean=("Bias_pct", "mean"),
             )
         )
 
@@ -275,52 +296,44 @@ cells = [
         plt.show()
         """
     ),
-    md("### Permutation importance fuera de entrenamiento"),
+    md(
+        """
+        ### Permutation importance recursiva fuera de entrenamiento
+
+        La permutation importance tabular convencional no es comparable con
+        este forecast: reconstruir lags sobre la validación incorporaría ventas
+        reales que no existen al emitir el pronóstico. Aquí cada perturbación
+        vuelve a recorrer los 15 días. Sólo permuta features generadas por el
+        recorrido base, realimenta predicciones perturbadas y nunca usa ventas
+        reales para lags o rolling. Cada feature se permuta sólo entre series
+        de la misma fecha; los lags y rolling se reconstruyen primero desde la
+        historia del recorrido perturbado. La importancia es el aumento de
+        RMSLE y mide sensibilidad predictiva, no causalidad. Las features
+        constantes entre series de un mismo día tienen importancia cero por
+        construcción bajo este procedimiento.
+        """
+    ),
     code(
         """
-        from src.features.model_features import add_lag_features, add_rolling_features
-        from src.models.categorical import apply_category_schema
+        from src.models.recursive_importance import recursive_permutation_importance
 
         last_prepared = last_fold_result["prepared"]
-        last_historical_features = add_rolling_features(
-            add_lag_features(last_prepared["features_base"]),
-            windows=(7, 14, 28),
-        )
-        permutation_frame = last_historical_features.loc[
-            last_historical_features["date"].gt(
-                backtest_windows.iloc[-1]["validation_start"]
+        permutation_table, permutation_predictions, permutation_trace = (
+            recursive_permutation_importance(
+                model=last_fold_result["model"],
+                features_base=last_prepared["features_base"],
+                train=last_prepared["train"],
+                validation=last_prepared["validation"],
+                validation_start=backtest_windows.iloc[-1]["validation_start"],
+                validation_end=backtest_windows.iloc[-1]["validation_end"],
+                model_features=MODEL_FEATURES,
+                category_schema=last_fold_result["category_schema"],
+                n_repeats=3,
+                random_state=42,
             )
-        ].copy()
-        if len(permutation_frame) > 50_000:
-            permutation_frame = permutation_frame.sample(50_000, random_state=42)
-
-        X_permutation = permutation_frame[MODEL_FEATURES].copy()
-        X_permutation, permutation_unknown = apply_category_schema(
-            X_permutation,
-            last_fold_result["category_schema"],
         )
-        assert permutation_unknown == {}
-
-        permutation = permutation_importance(
-            last_fold_result["model"],
-            X_permutation,
-            np.log1p(permutation_frame["sales"]),
-            scoring="neg_mean_squared_error",
-            n_repeats=3,
-            random_state=42,
-            n_jobs=-1,
-        )
-        permutation_table = (
-            pd.DataFrame(
-                {
-                    "feature": MODEL_FEATURES,
-                    "importance_mean": permutation.importances_mean,
-                    "importance_std": permutation.importances_std,
-                }
-            )
-            .sort_values("importance_mean", ascending=False)
-            .reset_index(drop=True)
-        )
+        assert permutation_trace["date"].min() > last_prepared["train"]["date"].max()
+        assert len(permutation_predictions) == len(last_prepared["validation"])
         display(permutation_table.head(15).round(6))
         """
     ),
@@ -334,13 +347,13 @@ cells = [
             xerr=permutation_plot["importance_std"],
         )
         plt.title("Permutation importance — último fold previo al test")
-        plt.xlabel("Aumento medio del MSE log al permutar")
+        plt.xlabel("Aumento medio de RMSLE al permutar y re-pronosticar")
         plt.tight_layout()
         plt.show()
 
-        del last_historical_features, permutation_frame, X_permutation
+        del permutation_predictions, permutation_trace
         del last_fold_result, last_prepared
-        gc.collect()
+        _ = gc.collect()
         """
     ),
     md(
@@ -389,10 +402,26 @@ cells = [
         display(final_comparison.round(6))
         """
     ),
-    md("## Diagnóstico del test final"),
+    md(
+        """
+        ## Diagnóstico comercial del test final
+
+        WAPE pondera el error absoluto por el volumen real; si un segmento no
+        tiene ventas, queda como `NaN` en vez de dividir por cero. Un sesgo
+        negativo indica subpredicción (riesgo potencial de faltantes) y uno
+        positivo sobrepredicción (riesgo potencial de sobrestock). Son riesgos
+        inferidos del forecast: sin inventario, quiebres ni costos no se afirma
+        que hayan ocurrido faltantes, pérdidas o excedentes reales.
+
+        RMSLE y WAPE responden preguntas diferentes: RMSLE enfatiza errores
+        relativos y reduce el peso de grandes volúmenes; WAPE refleja unidades
+        absolutas sobre el volumen total. Mejorar una no garantiza mejorar la
+        otra.
+        """
+    ),
     code(
         """
-        from src.models.baseline import mae, mean_signed_error, rmsle
+        from src.models.experiment import prediction_metrics, segment_metrics
 
         lgbm_eval = final_result["lgbm_eval"].copy()
         baseline_eval = final_result["baseline_eval"].copy()
@@ -412,17 +441,11 @@ cells = [
                 ("Seasonal baseline", "pred_baseline"),
                 ("LightGBM recursive", "prediction"),
             ]:
-                daily_rows.append(
-                    {
-                        "horizon_day": horizon_day,
-                        "model": model_name,
-                        "RMSLE": rmsle(group["sales"], group[prediction_col]),
-                        "MAE": mae(group["sales"], group[prediction_col]),
-                        "MSE_signed": mean_signed_error(
-                            group["sales"], group[prediction_col]
-                        ),
-                    }
-                )
+                daily_rows.append({
+                    "horizon_day": horizon_day,
+                    "model": model_name,
+                    **prediction_metrics(group["sales"], group[prediction_col]),
+                })
         daily_diagnostics = pd.DataFrame(daily_rows)
         display(daily_diagnostics.round(6))
         """
@@ -447,63 +470,72 @@ cells = [
     ),
     code(
         """
-        def grouped_metrics(data, group_col, prediction_col):
-            rows = []
-            for value, group in data.groupby(group_col, observed=True):
-                rows.append(
-                    {
-                        group_col: value,
-                        "RMSLE": rmsle(group["sales"], group[prediction_col]),
-                        "MAE": mae(group["sales"], group[prediction_col]),
-                        "MSE_signed": mean_signed_error(
-                            group["sales"], group[prediction_col]
-                        ),
-                        "n_obs": len(group),
-                    }
-                )
-            return pd.DataFrame(rows)
+        def compare_segments(data, group_cols):
+            frames = []
+            for model_name, prediction_col in [
+                ("Seasonal baseline", "pred_baseline"),
+                ("LightGBM recursive", "prediction"),
+            ]:
+                metrics = segment_metrics(data, prediction_col, group_cols)
+                metrics["model"] = model_name
+                frames.append(metrics)
+            return pd.concat(frames, ignore_index=True)
 
-        store_diagnostics = grouped_metrics(lgbm_eval, "store_nbr", "prediction")
-        family_diagnostics = grouped_metrics(lgbm_eval, "family", "prediction")
+        store_diagnostics = compare_segments(comparison_eval, ["store_nbr"])
+        family_diagnostics = compare_segments(comparison_eval, ["family"])
 
-        display(store_diagnostics.sort_values("RMSLE", ascending=False).head(15).round(6))
-        display(family_diagnostics.sort_values("RMSLE", ascending=False).head(15).round(6))
+        display(store_diagnostics.sort_values("RMSLE", ascending=False).head(20).round(4))
+        display(family_diagnostics.sort_values("RMSLE", ascending=False).head(20).round(4))
         """
     ),
-    md("### Comparación por tipo de demanda ADI/CV²"),
+    md(
+        """
+        ### Familias difíciles y patrones ADI/CV²
+
+        La clasificación se calcula exclusivamente con train hasta 31/07. Se
+        comparan ambos modelos para LINGERIE, GROCERY II, demanda intermitente y
+        lumpy, incluyendo ceros, frecuencia del signo del error, magnitudes y
+        tamaños de muestra. Esto genera evidencia para decidir más adelante si
+        vale la pena probar un hurdle; aquí no se entrena ningún segundo modelo.
+        """
+    ),
     code(
         """
         from src.features.demand_classification import build_demand_profile
 
         train_demand_profile = build_demand_profile(final_result["prepared"]["train"])
         demand_eval = comparison_eval.merge(
-            train_demand_profile[["store_nbr", "family", "tipo_demanda"]],
+            train_demand_profile[
+                ["store_nbr", "family", "tipo_demanda", "pct_ceros"]
+            ],
             on=["store_nbr", "family"],
             how="left",
             validate="many_to_one",
         )
         assert demand_eval["tipo_demanda"].notna().all()
 
-        demand_rows = []
-        for demand_type, group in demand_eval.groupby("tipo_demanda"):
-            for model_name, prediction_col in [
-                ("Seasonal baseline", "pred_baseline"),
-                ("LightGBM recursive", "prediction"),
-            ]:
-                demand_rows.append(
-                    {
-                        "tipo_demanda": demand_type,
-                        "model": model_name,
-                        "RMSLE": rmsle(group["sales"], group[prediction_col]),
-                        "MAE": mae(group["sales"], group[prediction_col]),
-                        "MSE_signed": mean_signed_error(
-                            group["sales"], group[prediction_col]
-                        ),
-                        "series": group[["store_nbr", "family"]].drop_duplicates().shape[0],
-                    }
-                )
-        demand_diagnostics = pd.DataFrame(demand_rows)
-        display(demand_diagnostics.round(6))
+        demand_diagnostics = compare_segments(demand_eval, ["tipo_demanda"])
+        difficult_demand = demand_diagnostics.loc[
+            demand_diagnostics["tipo_demanda"].isin(["Intermitente", "Lumpy"])
+        ].copy()
+        difficult_families = family_diagnostics.loc[
+            family_diagnostics["family"].isin(["LINGERIE", "GROCERY II"])
+        ].copy()
+
+        display(demand_diagnostics.round(4))
+        print("Foco: demanda intermitente y lumpy")
+        display(difficult_demand.round(4))
+        print("Foco: LINGERIE y GROCERY II")
+        display(difficult_families.round(4))
+
+        profile_sizes = (
+            train_demand_profile.groupby("tipo_demanda", as_index=False)
+            .agg(
+                series=("family", "size"),
+                historical_zero_pct=("pct_ceros", "mean"),
+            )
+        )
+        display(profile_sizes.round(4))
         """
     ),
     code(
@@ -518,6 +550,72 @@ cells = [
         plt.xticks(rotation=0)
         plt.tight_layout()
         plt.show()
+        """
+    ),
+    md(
+        """
+        ### Sensibilidad a promociones futuras
+
+        En el escenario de Corporación Favorita se asume que `onpromotion`
+        representa un plan promocional conocido antes de los 15 días. En una
+        empresa real sólo sería admisible si proviene del calendario comercial
+        aprobado; un registro completado retrospectivamente no estaría
+        disponible y no debería usarse.
+
+        Como sensibilidad, se mantiene el mismo modelo ya fijado y se vuelve a
+        pronosticar el test forzando `onpromotion=0`. No se reentrena ni se usa
+        la venta real para construir features. La comparación mide cuánto
+        depende el forecast de disponer del plan, no estima causalidad de las
+        promociones.
+        """
+    ),
+    code(
+        """
+        from src.models.recursive_forecast import recursive_forecast
+
+        def without_future_promotions(X_day, keys, current_date):
+            X_day["onpromotion"] = 0
+            return X_day
+
+        no_promo_predictions = recursive_forecast(
+            model=final_result["model"],
+            features_base=final_result["prepared"]["features_base"],
+            train=final_result["prepared"]["train"],
+            validation_start=FINAL_TEST_START,
+            validation_end=FINAL_TEST_END,
+            model_features=MODEL_FEATURES,
+            category_schema=final_result["category_schema"],
+            feature_transform=without_future_promotions,
+        ).rename(columns={"prediction": "prediction_no_future_promo"})
+
+        promotion_sensitivity = comparison_eval.merge(
+            no_promo_predictions,
+            on=["date", "store_nbr", "family"],
+            how="left",
+            validate="one_to_one",
+        )
+        promotion_rows = []
+        for scenario, prediction_col in [
+            ("Plan futuro disponible", "prediction"),
+            ("Sin información promocional futura", "prediction_no_future_promo"),
+        ]:
+            promotion_rows.append({
+                "scenario": scenario,
+                "forecast_total": promotion_sensitivity[prediction_col].sum(),
+                **prediction_metrics(
+                    promotion_sensitivity["sales"],
+                    promotion_sensitivity[prediction_col],
+                ),
+            })
+        promotion_sensitivity_summary = pd.DataFrame(promotion_rows)
+        display(promotion_sensitivity_summary.round(4))
+        print(
+            "Filas con promoción planificada en el horizonte:",
+            int(final_result["prepared"]["features_base"].loc[
+                lambda x: x["date"].between(FINAL_TEST_START, FINAL_TEST_END),
+                "onpromotion",
+            ].gt(0).sum()),
+        )
         """
     ),
     md("### Feature importance del modelo final"),
