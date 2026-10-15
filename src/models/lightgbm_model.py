@@ -37,6 +37,7 @@ def _native_train(
     X_valid=None,
     y_valid=None,
     stopping_rounds=None,
+    params=None,
 ):
     """Entrena el mismo LightGBM mediante su API nativa, sin sklearn."""
 
@@ -61,8 +62,9 @@ def _native_train(
             lgb.early_stopping(stopping_rounds=stopping_rounds, verbose=False)
         ]
 
+    train_params = {**LIGHTGBM_BASE_PARAMS, **(params or {})}
     booster = lgb.train(
-        params=LIGHTGBM_BASE_PARAMS,
+        params=train_params,
         train_set=train_set,
         num_boost_round=int(n_estimators),
         valid_sets=valid_sets,
@@ -72,12 +74,13 @@ def _native_train(
     return _NativeLightGBMRegressor(booster, best_iteration)
 
 
-def make_lgbm_regressor(n_estimators):
+def make_lgbm_regressor(n_estimators, params=None):
     """Crea el primer modelo LightGBM con configuración reproducible."""
 
+    model_params = {**LIGHTGBM_BASE_PARAMS, **(params or {})}
     return lgb.LGBMRegressor(
         n_estimators=int(n_estimators),
-        **LIGHTGBM_BASE_PARAMS,
+        **model_params,
     )
 
 
@@ -89,6 +92,7 @@ def fit_with_early_stopping(
     categorical_features,
     max_estimators=1000,
     stopping_rounds=50,
+    params=None,
 ):
     """Selecciona iteraciones sin usar el test final."""
 
@@ -101,10 +105,11 @@ def fit_with_early_stopping(
             categorical_features=categorical_features,
             n_estimators=max_estimators,
             stopping_rounds=stopping_rounds,
+            params=params,
         )
         return model, model.best_iteration_
 
-    model = make_lgbm_regressor(max_estimators)
+    model = make_lgbm_regressor(max_estimators, params=params)
     model.fit(
         X_train,
         np.log1p(y_train),
@@ -127,6 +132,7 @@ def fit_fixed_iterations(
     y_train,
     categorical_features,
     n_estimators,
+    params=None,
 ):
     """Reentrena con la cantidad de árboles ya fijada."""
 
@@ -136,9 +142,10 @@ def fit_fixed_iterations(
             y_train=y_train,
             categorical_features=categorical_features,
             n_estimators=n_estimators,
+            params=params,
         )
 
-    model = make_lgbm_regressor(n_estimators)
+    model = make_lgbm_regressor(n_estimators, params=params)
     model.fit(
         X_train,
         np.log1p(y_train),

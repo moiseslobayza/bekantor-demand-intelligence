@@ -1,0 +1,19 @@
+{
+  "selected_iterations": 915,
+  "fold_best_iterations": [
+    654,
+    1000,
+    1000,
+    831
+  ],
+  "max_iterations": 1000,
+  "source": "tuning_inner_early_stopping_median",
+  "protocol_version": "forecasting-v2.1",
+  "data_signature": "597ba3759c8be1cb",
+  "folds": [
+    1,
+    2,
+    3,
+    4
+  ]
+}

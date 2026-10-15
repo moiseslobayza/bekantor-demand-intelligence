@@ -1,0 +1,23 @@
+{
+  "max_depth": 10,
+  "num_leaves": 252,
+  "learning_rate": 0.04207406507372892,
+  "min_child_samples": 41,
+  "reg_lambda": 9.611895995820078,
+  "objective_recursive_rmsle": 0.40341541138545006,
+  "selected_n_estimators": 592,
+  "tuning_fold_best_iterations": [
+    184,
+    759,
+    1227,
+    426
+  ],
+  "tuning_fold_rmsle": [
+    0.43852777256224523,
+    0.3952642419772963,
+    0.39067426907547864,
+    0.3891953619267801
+  ],
+  "near_estimator_cap_folds": 0,
+  "estimator_cap_is_binding": false
+}

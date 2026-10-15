@@ -1,0 +1,74 @@
+{
+  "protocol": "full",
+  "august_evaluated": false,
+  "trials": 20,
+  "max_estimators": 1500,
+  "catboost_iterations": 915,
+  "catboost_iteration_source": "tuning_inner_early_stopping_median",
+  "catboost_max_iterations": 1000,
+  "tsb_alpha": 0.2,
+  "tsb_beta": 0.1,
+  "python": "3.12.14",
+  "elapsed_seconds": 33567.518599271774,
+  "stage_seconds": {
+    "load_clean_and_signature": 3.3367073999997956,
+    "prepare_tuning_folds": 194.12724830000116,
+    "optuna_lightgbm": 19594.099021200003,
+    "catboost_iteration_calibration": 8473.843958500001,
+    "tsb_selection_and_tuning_diagnostics": 124.56581369999913,
+    "development_evaluation": 5145.9612552000035,
+    "diagnostics_promotions_inventory": 30.556333599997743
+  },
+  "evaluation_fold_seconds": {
+    "5": 2549.744268500006,
+    "6": 2596.2169866999975
+  },
+  "prepared_data_cache": "in_memory_once_per_cutoff",
+  "study_name": "forecasting-v2.1-data-597ba3759c8be1cb-tuning4-h15-max1500",
+  "study_storage": "outputs/forecasting_v2_full/optuna_study.log",
+  "data_signature": "597ba3759c8be1cb",
+  "folds": [
+    {
+      "fold": 1,
+      "train_end": "2017-05-02",
+      "validation_start": "2017-05-03",
+      "validation_end": "2017-05-17",
+      "role": "tuning"
+    },
+    {
+      "fold": 2,
+      "train_end": "2017-05-17",
+      "validation_start": "2017-05-18",
+      "validation_end": "2017-06-01",
+      "role": "tuning"
+    },
+    {
+      "fold": 3,
+      "train_end": "2017-06-01",
+      "validation_start": "2017-06-02",
+      "validation_end": "2017-06-16",
+      "role": "tuning"
+    },
+    {
+      "fold": 4,
+      "train_end": "2017-06-16",
+      "validation_start": "2017-06-17",
+      "validation_end": "2017-07-01",
+      "role": "tuning"
+    },
+    {
+      "fold": 5,
+      "train_end": "2017-07-01",
+      "validation_start": "2017-07-02",
+      "validation_end": "2017-07-16",
+      "role": "development_evaluation"
+    },
+    {
+      "fold": 6,
+      "train_end": "2017-07-16",
+      "validation_start": "2017-07-17",
+      "validation_end": "2017-07-31",
+      "role": "development_evaluation"
+    }
+  ]
+}

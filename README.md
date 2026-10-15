@@ -10,6 +10,26 @@ Proyecto de análisis y forecasting de demanda retail sobre el dataset **Corpora
 - `src/features/`: calendario, contrato de features, lags, rolling y clasificación ADI/CV².
 - `src/models/`: baseline, esquema categórico, validación, entrenamiento y forecast recursivo.
 - `tests/test_forecasting_pipeline.py`: tests automáticos de las garantías temporales del pipeline.
+- `notebooks/06_forecasting_v2.ipynb`: comparación y simulación empresarial V2.
+- `docs/data_contract.md`: obtención portable de datos y disponibilidad temporal.
+- `docs/forecasting_v2_methodology.md`: protocolo de selección anterior a agosto.
+
+## Forecasting V2
+
+La rama `forecasting-v2` amplía el diseño a seis folds de 15 días: cuatro de
+tuning y dos de evaluación de desarrollo que Optuna no observa. Incorpora
+LightGBM optimizado sobre pronósticos recursivos, CatBoost, TSB, tres escenarios
+de promociones y un simulador de inventario basado en supuestos explícitos.
+Consulte `docs/data_contract.md` antes de ejecutar los experimentos.
+
+Ejecución rápida y auditoría de artefactos:
+
+```bash
+python scripts/run_forecasting_v2.py --quick
+python scripts/audit_forecasting_v2_outputs.py
+python scripts/rebuild_forecasting_v2_notebook.py
+python scripts/execute_forecasting_v2_notebook.py
+```
 
 ## Metodología de modelado
 

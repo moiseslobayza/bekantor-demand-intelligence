@@ -5,6 +5,11 @@ data/processed/
 .venv/
 .venv-eda/
 .venv-eda-cache/
+.venv-v2/
 __pycache__/
 .ipynb_checkpoints/
+.pytest_cache/
 *.pyc
+outputs/jupyter_runtime*/
+outputs/forecasting_v2/
+outputs/forecasting_v2_full/*.html

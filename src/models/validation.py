@@ -40,6 +40,35 @@ def rolling_origin_windows(final_test_start, n_windows=3, horizon_days=15):
     return pd.DataFrame(rows)
 
 
+def v2_development_windows(
+    final_test_start="2017-08-01",
+    n_tuning_windows=4,
+    n_evaluation_windows=2,
+    horizon_days=15,
+):
+    """Folds V2 anteriores a agosto, con evaluación no usada por Optuna.
+
+    Los folds son contiguos, no solapados y su rol queda fijado antes de mirar
+    sus métricas. Los últimos ``n_evaluation_windows`` son un desarrollo
+    externo: no participan en la función objetivo ni en la selección de
+    hiperparámetros.
+    """
+
+    if n_tuning_windows < 1 or n_evaluation_windows < 1:
+        raise ValueError("Se requiere al menos un fold de tuning y uno de evaluación")
+    windows = rolling_origin_windows(
+        final_test_start=final_test_start,
+        n_windows=n_tuning_windows + n_evaluation_windows,
+        horizon_days=horizon_days,
+    )
+    windows["role"] = ["tuning"] * n_tuning_windows + [
+        "development_evaluation"
+    ] * n_evaluation_windows
+    if windows["validation_end"].max() >= pd.Timestamp(final_test_start):
+        raise AssertionError("Los folds de desarrollo deben finalizar antes de agosto")
+    return windows
+
+
 def temporal_train_valid_split(
     data,
     validation_days=15,
