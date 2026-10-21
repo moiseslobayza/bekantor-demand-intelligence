@@ -1,0 +1,16 @@
+{
+  "best_lightgbm.json": "7ce4278e91e9b71357f9132847dcfd4ca4c9b9a58ee93fd1d317af09c75f75f2",
+  "catboost_iterations.json": "f2d065a2abea6fc439ffdc0d9fdc6dc89ef2669884f895a01a97b9ff44912d2d",
+  "fold_metrics.csv": "c7ef5e390291b727bab797370ba3e0181a7688358a8fcac49bc1361a4464056e",
+  "folds.csv": "205f4a951a9e584f7e130ec51825598b79e58e2525818fa450370c4b0a99028c",
+  "inventory_example_summary.csv": "5ef727498e031e3d3980ab46ee2c2c51b4b37ebd9f484243dd22a03a7c345ceb",
+  "inventory_example_trajectory.csv": "9c73352382b4100f3baf9e8b22c32244ef8823ee73488f554d291501659b21d7",
+  "inventory_sensitivity.csv": "197c48d181caba5036b5bb83f1e9e34216f4e86c7e59c5a095b0d8538aea93b7",
+  "model_comparison.csv": "4480729a91588a859a29275c56863c0336714e46255471bebc3bdf42d6368adb",
+  "optuna_study.log": "f982818153994c2788062456c7c504afcf4587f3d82f9c9e02b215699675231c",
+  "optuna_trials.csv": "554a0f1bfb16881155f250995ee3c5f0882fe21e5ddde3293670f68fbb059f45",
+  "promotion_scenarios.csv": "f455548303b07974cf6065b7098daea658f1e99aea172f2116048e09f421803e",
+  "run_manifest.json": "659c8ca39eba2b99547ad23b6621d0750365866b0ba1a884e2303164d5cce919",
+  "segment_diagnostics.csv": "b0f5185924b945e577ee3712c563bb55f954438724dac172dd7362839e905281",
+  "tsb_parameter_search.csv": "8dcc06cec0d4a3b8d4060ee7b02838604b61d94603667ecf6ba00e9237cf3dd1"
+}

@@ -11,8 +11,10 @@ Proyecto de análisis y forecasting de demanda retail sobre el dataset **Corpora
 - `src/models/`: baseline, esquema categórico, validación, entrenamiento y forecast recursivo.
 - `tests/test_forecasting_pipeline.py`: tests automáticos de las garantías temporales del pipeline.
 - `notebooks/06_forecasting_v2.ipynb`: comparación y simulación empresarial V2.
+- `notebooks/07_project_closure.ipynb`: cierre académico ejecutable sin reentrenar.
 - `docs/data_contract.md`: obtención portable de datos y disponibilidad temporal.
 - `docs/forecasting_v2_methodology.md`: protocolo de selección anterior a agosto.
+- `docs/forecasting_final_conclusions.md`: interpretación final, utilidad empresarial y límites.
 
 ## Forecasting V2
 
@@ -21,6 +23,23 @@ tuning y dos de evaluación de desarrollo que Optuna no observa. Incorpora
 LightGBM optimizado sobre pronósticos recursivos, CatBoost, TSB, tres escenarios
 de promociones y un simulador de inventario basado en supuestos explícitos.
 Consulte `docs/data_contract.md` antes de ejecutar los experimentos.
+
+## Cierre académico final
+
+La rama `forecasting-final` reutiliza los resultados V2 y agrega un escenario
+de inventario con stock inicial insuficiente. No vuelve a ejecutar modelos.
+
+```bash
+python scripts/build_forecasting_final_artifacts.py
+python scripts/build_project_closure_notebook.py
+python scripts/execute_project_closure_notebook.py
+python scripts/render_project_closure_notebook.py
+python scripts/audit_forecasting_final_outputs.py
+```
+
+Los artefactos nuevos se escriben en `outputs/forecasting_final/`. Los 14
+artefactos originales de `outputs/forecasting_v2_full/` y los notebooks 04–06
+se verifican por huella y permanecen sin cambios.
 
 Ejecución rápida y auditoría de artefactos:
 
