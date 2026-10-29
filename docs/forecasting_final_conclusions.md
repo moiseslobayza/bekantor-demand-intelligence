@@ -14,6 +14,11 @@ candidato observado**, sin afirmar que sea universalmente superior al
 LightGBM original. La diferencia entre ambos es pequeña y fue observada en
 solamente dos ventanas externas de desarrollo.
 
+La elección de LightGBM se apoya en una implementación de gradient boosting
+orientada a eficiencia (Ke et al., 2017); CatBoost se incluyó como alternativa
+con tratamiento específico de variables categóricas (Prokhorenkova et al.,
+2018), y Optuna como marco trazable de optimización (Akiba et al., 2019).
+
 Fuentes de este cierre:
 
 - los 14 artefactos originales de `outputs/forecasting_v2_full/`;
@@ -60,6 +65,11 @@ De los 20 trials, 17 terminaron y 3 fueron podados. La etapa Optuna consumió
 consumió `33.567,52` segundos, aproximadamente **9 h 19 min 28 s**. Ese costo
 computacional produjo una mejora incremental, no un salto de desempeño.
 
+CatBoost alcanzó su máximo interno de 1.000 iteraciones en 2 de 4 folds de
+calibración. Sus resultados siguen siendo válidos como benchmark bajo el
+presupuesto fijado, pero no demuestran que ese presupuesto haya permitido
+alcanzar su mejor configuración posible.
+
 ### Límite de la evidencia
 
 Los dos modelos se compararon externamente en los mismos folds 5 y 6 y el
@@ -71,6 +81,8 @@ una ventana no deben confundirse con muchas réplicas temporales independientes.
 Por ello no se calculan pruebas de significancia ni intervalos de confianza.
 La conclusión defendible es: **el LightGBM optimizado fue el mejor candidato
 observado, pero la evidencia de superioridad sobre el original es limitada**.
+El uso de múltiples orígenes temporales mejora la evaluación fuera de muestra,
+pero dos ventanas siguen siendo pocas para generalizar (Tashman, 2000).
 
 ## 2. Validación temporal: V1 y V2 no son el mismo experimento
 
@@ -199,7 +211,7 @@ económica general: depende de parámetros supuestos y de una sola serie.
 TSB (Teunter–Syntetos–Babai) separa dos componentes: la probabilidad de que
 ocurra demanda y el tamaño esperado cuando ocurre. Por eso puede ser adecuado
 para series con muchos ceros y obsolescencia o intervalos irregulares entre
-ventas.
+ventas (Teunter et al., 2011).
 
 Sin embargo, TSB se ajusta por serie y utiliza una estructura mucho más
 restringida. El modelo global LightGBM comparte señal entre tiendas y familias y
@@ -283,3 +295,29 @@ El principal avance del proyecto no es una décima adicional de precisión, sino
 haber convertido el EDA en un sistema experimental reproducible que explicita
 qué se conoce al momento de decidir, separa selección y evaluación, y traduce
 pronósticos a escenarios operativos sin ocultar sus límites.
+
+## Referencias bibliográficas
+
+Akiba, T., Sano, S., Yanase, T., Ohta, T., & Koyama, M. (2019). Optuna: A next-generation hyperparameter optimization framework. *Proceedings of the 25th ACM SIGKDD International Conference on Knowledge Discovery & Data Mining*, 2623–2631. <https://doi.org/10.1145/3292500.3330701>
+
+Hyndman, R. J., & Koehler, A. B. (2006). Another look at measures of forecast accuracy. *International Journal of Forecasting, 22*(4), 679–688. <https://doi.org/10.1016/j.ijforecast.2006.03.001>
+
+Kaggle. (2017). *Corporación Favorita Grocery Sales Forecasting* [Data set and competition]. <https://www.kaggle.com/c/favorita-grocery-sales-forecasting>
+
+Ke, G., Meng, Q., Finley, T., Wang, T., Chen, W., Ma, W., Ye, Q., & Liu, T.-Y. (2017). LightGBM: A highly efficient gradient boosting decision tree. *Advances in Neural Information Processing Systems, 30*. <https://proceedings.neurips.cc/paper/2017/hash/6449f44a102fde848669bdd9eb6b76fa-Abstract.html>
+
+Prokhorenkova, L., Gusev, G., Vorobev, A., Dorogush, A. V., & Gulin, A. (2018). CatBoost: Unbiased boosting with categorical features. *Advances in Neural Information Processing Systems, 31*. <https://proceedings.neurips.cc/paper/2018/hash/14491b756b3a51daac41c24863285549-Abstract.html>
+
+Silver, E. A., Pyke, D. F., & Thomas, D. J. (2017). *Inventory and production management in supply chains* (4th ed.). CRC Press. <https://www.routledge.com/Inventory-and-Production-Management-in-Supply-Chains/Silver-Pyke-Thomas/p/book/9781466558618>
+
+Tashman, L. J. (2000). Out-of-sample tests of forecasting accuracy: An analysis and review. *International Journal of Forecasting, 16*(4), 437–450. <https://doi.org/10.1016/S0169-2070(00)00065-0>
+
+Teunter, R. H., Syntetos, A. A., & Babai, M. Z. (2011). Intermittent demand: Linking forecasting to inventory obsolescence. *European Journal of Operational Research, 214*(3), 606–615. <https://doi.org/10.1016/j.ejor.2011.05.018>
+
+Las métricas RMSLE y WAPE se interpretan como medidas predictivas, no como
+efectos económicos. La bibliografía sobre medidas de error advierte que la
+elección de la métrica condiciona la comparación y que ninguna resume por sí
+sola todos los tipos de error (Hyndman & Koehler, 2006). El stock de seguridad,
+los lead times y los costos del caso son supuestos didácticos; su uso operativo
+requeriría datos reales de inventario y una política validada (Silver et al.,
+2017).

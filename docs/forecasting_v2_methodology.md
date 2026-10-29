@@ -1,5 +1,9 @@
 # Forecasting V2 — protocolo metodológico
 
+La evaluación rolling-origin sigue el principio de desplazar el origen del
+pronóstico y medir varios períodos fuera de muestra, recomendado para reducir
+la dependencia de una única ventana temporal (Tashman, 2000).
+
 ## Ventanas y selección
 
 La V2 fija seis folds rolling-origin de 15 días anteriores al 01/08/2017. Los
@@ -35,6 +39,17 @@ validación tabular.
   se congela mediante la mediana antes de evaluar los dos folds externos.
 - `TSB`: actualiza probabilidad de ocurrencia y tamaño positivo por
   tienda–familia. Sus parámetros alpha/beta se eligen sólo en folds de tuning.
+
+LightGBM se usa como implementación eficiente de gradient boosting (Ke et al.,
+2017), CatBoost como alternativa con tratamiento explícito de categóricas
+(Prokhorenkova et al., 2018), Optuna para búsqueda y poda reproducible de
+hiperparámetros (Akiba et al., 2019), y TSB como método específico para demanda
+intermitente (Teunter et al., 2011).
+
+CatBoost alcanzó el máximo interno de 1.000 iteraciones en 2 de sus 4 folds de
+calibración (`654, 1000, 1000, 831`). Por ello se interpreta como benchmark con
+presupuesto parcialmente vinculante; no invalida sus métricas observadas, pero
+limita una conclusión fuerte sobre su mejor desempeño posible.
 
 La selección principal se define por RMSLE medio de tuning, con WAPE, sesgo y
 estabilidad entre folds como guardas. Las comparaciones segmentadas conservan
@@ -78,3 +93,11 @@ python scripts/execute_forecasting_v2_notebook.py
 
 Ninguna métrica se completa manualmente: el notebook lee artefactos generados o
 marca con claridad qué experimento no fue ejecutado.
+
+## Referencias metodológicas
+
+- Akiba, T., Sano, S., Yanase, T., Ohta, T., & Koyama, M. (2019). Optuna: A next-generation hyperparameter optimization framework. *Proceedings of the 25th ACM SIGKDD International Conference on Knowledge Discovery & Data Mining*, 2623–2631. <https://doi.org/10.1145/3292500.3330701>
+- Ke, G., Meng, Q., Finley, T., Wang, T., Chen, W., Ma, W., Ye, Q., & Liu, T.-Y. (2017). LightGBM: A highly efficient gradient boosting decision tree. *Advances in Neural Information Processing Systems, 30*. <https://proceedings.neurips.cc/paper/2017/hash/6449f44a102fde848669bdd9eb6b76fa-Abstract.html>
+- Prokhorenkova, L., Gusev, G., Vorobev, A., Dorogush, A. V., & Gulin, A. (2018). CatBoost: Unbiased boosting with categorical features. *Advances in Neural Information Processing Systems, 31*. <https://proceedings.neurips.cc/paper/2018/hash/14491b756b3a51daac41c24863285549-Abstract.html>
+- Tashman, L. J. (2000). Out-of-sample tests of forecasting accuracy: An analysis and review. *International Journal of Forecasting, 16*(4), 437–450. <https://doi.org/10.1016/S0169-2070(00)00065-0>
+- Teunter, R. H., Syntetos, A. A., & Babai, M. Z. (2011). Intermittent demand: Linking forecasting to inventory obsolescence. *European Journal of Operational Research, 214*(3), 606–615. <https://doi.org/10.1016/j.ejor.2011.05.018>

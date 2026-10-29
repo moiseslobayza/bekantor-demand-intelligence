@@ -41,6 +41,29 @@ Los artefactos nuevos se escriben en `outputs/forecasting_final/`. Los 14
 artefactos originales de `outputs/forecasting_v2_full/` y los notebooks 04–06
 se verifican por huella y permanecen sin cambios.
 
+### Dos modalidades de reproducción
+
+**A. Reproducción de resultados (recomendada para la defensa).** Reconstruye
+las tablas, gráficos y conclusiones desde los 14 artefactos V2 y los artefactos
+del cierre. No requiere los CSV de Kaggle, Google Drive ni entrenamiento:
+
+```bash
+python scripts/audit_forecasting_v2_outputs.py
+python scripts/audit_forecasting_final_outputs.py
+```
+
+En el TP7 consolidado, comenzar por el bloque **“Preparar cierre desde GitHub
+(commit fijo, sin entrenamiento)”**. No usar “Run all” para esta modalidad,
+porque los capítulos históricos anteriores conservan las celdas de los
+experimentos originales.
+
+**B. Reproducción experimental.** Repite preparación, tuning, entrenamiento,
+backtesting y simulaciones. Requiere aceptar las reglas de la competencia de
+Kaggle, descargar los cinco CSV indicados en `docs/data_contract.md`, instalar
+`requirements.txt` y reservar varias horas. Google Drive es opcional: puede
+usarse `data/raw/` o la variable `FAVORITA_DATA_DIR`. No se almacenan
+credenciales en el repositorio.
+
 Ejecución rápida y auditoría de artefactos:
 
 ```bash
@@ -144,3 +167,9 @@ La ejecución validada completó las 21 celdas de código sin errores y los 11 t
 ## Nota sobre petróleo
 
 Después de reindexar al calendario diario y aplicar únicamente `ffill`, queda un valor nulo el **2013-01-01**. Se conserva porque no existe una cotización previa conocida. No se utiliza `bfill` ni interpolación con valores futuros para evitar leakage.
+
+## Documentación para la defensa
+
+- `docs/auditoria_defensa_final.md`: auditoría académica, controles y pendientes.
+- `docs/resumen_ejecutivo_defensa_final.md`: guion ejecutivo de una página.
+- `docs/forecasting_final_conclusions.md`: interpretación, límites y referencias APA 7.

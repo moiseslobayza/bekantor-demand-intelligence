@@ -7,6 +7,12 @@ de Kaggle. La V2 requiere los archivos originales `train.csv`, `stores.csv`,
 `transactions.csv`, `holidays_events.csv` y `oil.csv`. No se versionan datos,
 credenciales ni tokens.
 
+Competencia y condiciones de acceso:
+<https://www.kaggle.com/c/favorita-grocery-sales-forecasting>. La descarga
+requiere una cuenta de Kaggle y la aceptación previa de las reglas. Las
+credenciales deben configurarse fuera del repositorio siguiendo la
+documentación oficial de la API de Kaggle.
+
 Descarga con Kaggle API (después de aceptar las reglas de la competencia y
 configurar las credenciales según la documentación oficial de Kaggle):
 
@@ -27,6 +33,10 @@ En Google Colab se puede definir, por ejemplo,
 `os.environ["FAVORITA_DATA_DIR"] = "/content/favorita"`; montar Drive es
 opcional, no un requisito del proyecto. `validate_raw_files()` enumera los
 archivos faltantes antes de iniciar un experimento costoso.
+
+Para reproducir solamente las tablas y gráficos del cierre no se necesitan los
+CSV: basta con clonar el commit de cierre y usar los artefactos versionados. La
+descarga de Kaggle corresponde únicamente a la reproducción experimental.
 
 ## Disponibilidad al emitir el pronóstico
 
